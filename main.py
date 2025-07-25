@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 import time
 import os
 import yt_dlp
+import http.server
+import socketserver
+import socket
+import shutil
 
 def clear_terminal():
     if os.name == 'nt':
@@ -19,8 +23,10 @@ options.add_argument("--disable-dev-shm-usage")
 
 driver = webdriver.Chrome(options=options   )
 
-url = "https://feelthemusi.com/playlist/ot3272"
+url = input("Enter Musi Playlist URL: ")
 driver.get(url)
+
+PORT = 8000
 
 time.sleep(5)  
 
@@ -31,6 +37,9 @@ title = title.split("|")[0].strip() if "|" in title else title
 clear_terminal()
 
 print(f"Playlist Name: {title}")
+
+if not os.path.exists(title):
+    os.makedirs(title)
 
 time.sleep(5)
 
@@ -48,13 +57,49 @@ driver.quit()
 
 ydl_opts = {
     'format': 'bestaudio/best',
+    'cookiefile': 'cookies.txt',
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
-    'outtmpl': '%(title)s.%(ext)s', 
+    'outtmpl': os.path.join(title, '%(title)s.%(ext)s'),
+    # 'verbose': True,
 }
 
 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
     ydl.download(filtered_links)
+
+folder_to_zip = title
+output_zip = title
+FILE_TO_SERVE = title + ".zip"
+
+print("Zipping playlist: " + title)
+shutil.make_archive(output_zip, "zip", folder_to_zip)
+
+class CustomHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/" or self.path == "/download":
+            self.send_response(200)
+            self.send_header("Content-type", "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{os.path.basename(FILE_TO_SERVE)}"')
+            self.end_headers()
+            with open(FILE_TO_SERVE, "rb") as f:
+                self.wfile.write(f.read())
+        else:
+            self.send_error(404, "File Not Found")
+
+hostname = socket.gethostname()
+local_ip = socket.gethostbyname(hostname)
+
+with socketserver.TCPServer(("0.0.0.0", PORT), CustomHandler) as httpd:
+    clear_terminal()
+    print("YOUR PHONE MUST BE ON THE SAME NETWORK AS YOUR COMPUTER!!!!")
+    print("Download the music to your phone: http://" + local_ip + ":" + str(PORT))
+    print("Once done, use Control + C to exit")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping server...")
+        httpd.server_close()
+
