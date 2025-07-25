@@ -58,6 +58,7 @@ driver.quit()
 ydl_opts = {
     'format': 'bestaudio/best',
     'cookiefile': 'cookies.txt',
+    'ignoreerrors': True,
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'mp3',
